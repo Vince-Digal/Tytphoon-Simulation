@@ -1,0 +1,88 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+from mpl_toolkits.mplot3d import Axes3D
+import cartopy.io.shapereader as shpreader
+
+# --- Load Typhoon Track Data ---
+
+# Suppose you downloaded IBTrACS CSV with columns: ['SID', 'Date', 'Lat', 'Lon', 'Wind', 'Pressure']
+# (SID = storm ID)
+df = pd.read_csv("ibtracs_v04r01.csv")  # change path accordingly
+
+# Filter Western Pacific
+# IBTrACS has a column "Basin" maybe; adjust filter based on your CSV schema
+df_wp = df[df['Basin'] == 'WP']
+
+# Group by storm
+storms = {}
+for sid, group in df_wp.groupby('SID'):
+    # Sort by date
+    group = group.sort_values('Date')
+    storms[sid] = {
+        'lat': group['Lat'].values,
+        'lon': group['Lon'].values,
+        'wind': group['Wind'].values,   # or use pressure
+    }
+
+# --- Setup Plot ---
+
+fig = plt.figure(figsize=(12, 10))
+ax = fig.add_subplot(111, projection='3d')
+
+# Draw Philippines land + sea
+lat_min, lat_max = 5, 21
+lon_min, lon_max = 116, 127
+lat_grid = np.linspace(lat_min, lat_max, 200)
+lon_grid = np.linspace(lon_min, lon_max, 200)
+Lon, Lat = np.meshgrid(lon_grid, lat_grid)
+Z = np.zeros_like(Lon)
+ax.plot_surface(Lon, Lat, Z, color='lightblue', alpha=0.5)
+
+reader = shpreader.natural_earth(resolution='10m', category='cultural', name='admin_0_countries')
+shp = shpreader.Reader(reader)
+for rec, geom in zip(shp.records(), shp.geometries()):
+    if rec.attributes['NAME'] == 'Philippines':
+        if geom.geom_type == 'Polygon':
+            lonp, latp = geom.exterior.xy
+            ax.plot(latp, lonp, zs=0, zdir='z', color='green')
+        else:
+            for poly in geom.geoms:
+                lonp, latp = poly.exterior.xy
+                ax.plot(latp, lonp, zs=0, zdir='z', color='green')
+
+ax.set_xlim(lat_min, lat_max)
+ax.set_ylim(lon_min, lon_max)
+ax.set_zlim(0, 200)  # depends on wind scale
+ax.set_xlabel("Latitude")
+ax.set_ylabel("Longitude")
+ax.set_zlabel("Wind Speed (knots)")
+
+# --- Prepare Storm Animations ---
+
+# For each storm, create a marker
+storm_markers = {}
+for sid, data in storms.items():
+    # Interpolate to more points for smooth animation
+    n = len(data['lat'])
+    # We'll just use the original for simplicity
+    marker, = ax.plot([data['lat'][0]], [data['lon'][0]], [data['wind'][0]],
+                      marker='o', markersize=8, label=sid)
+    storm_markers[sid] = marker
+
+# Animation function
+def animate(frame):
+    for sid, data in storms.items():
+        lat_arr = data['lat']
+        lon_arr = data['lon']
+        wind_arr = data['wind']
+        idx = frame % len(lat_arr)
+        storm_markers[sid].set_data([lat_arr[idx]], [lon_arr[idx]])
+        storm_markers[sid].set_3d_properties([wind_arr[idx]])
+    return list(storm_markers.values())
+
+ani = FuncAnimation(fig, animate, frames=500, interval=200, blit=True)
+
+plt.legend(loc='upper left')
+plt.show()
