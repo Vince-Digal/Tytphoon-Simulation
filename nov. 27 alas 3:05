@@ -1,0 +1,121 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
+# -----------------------------------------------------------
+# 1. LOAD DATA
+# -----------------------------------------------------------
+df = pd.read_csv(
+    r"C:\Users\vincegarvin.digal\Desktop\jupyter projects\ibtracs.ALL.list.v04r01.csv",
+    low_memory=False
+)
+
+# Filter: Western Pacific only
+df = df[df["BASIN"] == "WP"]
+
+# Keep useful columns
+df = df[["SID", "LAT", "LON", "USA_WIND"]]
+
+# -----------------------------------------------------------
+# FIX: CLEAN INVALID VALUES
+# -----------------------------------------------------------
+df["LAT"] = pd.to_numeric(df["LAT"], errors="coerce")
+df["LON"] = pd.to_numeric(df["LON"], errors="coerce")
+df["USA_WIND"] = pd.to_numeric(df["USA_WIND"], errors="coerce")
+
+# Drop rows that still contain missing values
+df = df.dropna(subset=["LAT", "LON", "USA_WIND"])
+
+# Group typhoons by SID
+storms = [g for _, g in df.groupby("SID")]
+
+# -----------------------------------------------------------
+# 2. COLOR SCHEME (SAFFIR–SIMPSON SCALE)
+# -----------------------------------------------------------
+def wind_to_color(w):
+    if w < 34:   return "white"       # Tropical Depression
+    if w < 64:   return "cyan"        # Tropical Storm
+    if w < 83:   return "yellow"      # Cat 1
+    if w < 96:   return "orange"      # Cat 2
+    if w < 113:  return "red"         # Cat 3
+    if w < 137:  return "magenta"     # Cat 4
+    return "purple"                    # Cat 5
+
+def wind_to_size(w):
+    return max(20, w * 0.8)
+
+# -----------------------------------------------------------
+# 3. PHILIPPINES BOUNDARY (simple polygon)
+# -----------------------------------------------------------
+philippines_lat = [21, 21, 4, 4]
+philippines_lon = [116, 128, 128, 116]
+
+# -----------------------------------------------------------
+# 4. SETUP PLOT
+# -----------------------------------------------------------
+fig, ax = plt.subplots(figsize=(8, 10))
+ax.set_facecolor("black")
+
+ax.set_xlim(110, 150)
+ax.set_ylim(0, 30)
+ax.set_title("Typhoon Simulation - Western Pacific", color="white", fontsize=18)
+ax.set_xlabel("Longitude", color="white")
+ax.set_ylabel("Latitude", color="white")
+ax.tick_params(colors="white")
+
+# Draw Philippines outline
+ax.plot(philippines_lon, philippines_lat, color="white", linewidth=1.5)
+
+# Animation elements
+trail, = ax.plot([], [], color="white", linewidth=1, alpha=0.6)
+dot = ax.scatter([], [], s=50, color="white")
+current_sid_text = ax.text(112, 28, "", color="white", fontsize=12)
+
+# -----------------------------------------------------------
+# 5. PREPARE ALL POINTS FOR ANIMATION
+# -----------------------------------------------------------
+all_points = []
+for storm in storms:
+    for _, row in storm.iterrows():
+        all_points.append(row)
+
+total_frames = len(all_points)
+
+# -----------------------------------------------------------
+# 6. UPDATE FUNCTION
+# -----------------------------------------------------------
+def update(frame):
+    row = all_points[frame]
+
+    lat = row["LAT"]
+    lon = row["LON"]
+    wind = row["USA_WIND"]
+    sid = row["SID"]
+
+    # Update the moving typhoon dot
+    dot.set_offsets([[lon, lat]])
+    dot.set_sizes([wind_to_size(wind)])
+    dot.set_color(wind_to_color(wind))
+
+    # Build trail only for the current storm
+    trail_lats = []
+    trail_lons = []
+
+    for past in all_points[:frame]:
+        if past["SID"] == sid:
+            trail_lats.append(past["LAT"])
+            trail_lons.append(past["LON"])
+
+    trail.set_data(trail_lons, trail_lats)
+
+    current_sid_text.set_text(f"Storm ID: {sid}\nWind: {wind} kt")
+
+    return dot, trail, current_sid_text
+
+# -----------------------------------------------------------
+# 7. RUN ANIMATION (NO MP4 EXPORT)
+# -----------------------------------------------------------
+anim = FuncAnimation(fig, update, frames=total_frames, interval=40)
+
+plt.show()
