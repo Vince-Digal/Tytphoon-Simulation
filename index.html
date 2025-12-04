@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌀 CTU TYPHOON SIMULATION</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #000;
+            overflow: hidden;
+        }
+
+        #map {
+            width: 100vw;
+            height: 100vh;
+            background: #0a0a0a;
+        }
+
+        /* Particle Canvas Overlay */
+        #particle-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 600;
+        }
+
+        /* Wind Speed Overlay Canvas */
+        #wind-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 500;
+            opacity: 0.6;
+        }
+
+        /* Top Control Bar */
+        .top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: rgba(20, 20, 30, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 2px solid rgba(100, 150, 255, 0.3);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #00d4ff 0%, #0066ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-right: 30px;
+        }
+
+        .layer-buttons {
+            display: flex;
+            gap: 10px;
+            flex: 1;
+        }
+
+        .layer-btn {
+            padding: 8px 16px;
+            background: rgba(50, 50, 60, 0.8);
+            border: 2px solid rgba(100, 150, 255, 0.3);
+            border-radius: 6px;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .layer-btn:hover {
+            background: rgba(70, 70, 80, 0.9);
+            border-color: rgba(100, 150, 255, 0.6);
+        }
+
+        .layer-btn.active {
+            background: linear-gradient(135deg, #0066ff 0%, #00d4ff 100%);
+            border-color: #00d4ff;
+        }
+
+        /* Right Panel */
+        .right-panel {
+            position: absolute;
+            top: 70px;
+            right: 20px;
+            width: 320px;
+            background: rgba(20, 20, 30, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            border: 2px solid rgba(100, 150, 255, 0.3);
+            padding: 20px;
+            z-index: 1000;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 900;
+            color: #00d4ff;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid rgba(100, 150, 255, 0.3);
+        }
+
+        .status-display {
+            background: linear-gradient(135deg, rgba(0, 100, 255, 0.2), rgba(0, 212, 255, 0.2));
+            border: 2px solid rgba(0, 212, 255, 0.5);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 13px;
+        }
+
+        .status-label {
+            color: #aaa;
+            font-weight: 600;
+        }
+
+        .status-value {
+            color: #00d4ff;
+            font-weight: 900;
+        }
+
+        .parameter-group {
+            margin: 15px 0;
+        }
+
+        .param-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .param-name {
+            color: #aaa;
+        }
+
+        .param-value {
+            color: #00d4ff;
+            font-weight: 900;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: linear-gradient(to right, 
+                #0066ff 0%, 
+                #00d4ff 50%, 
+                #ff6b00 100%);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.8);
+            border: 3px solid #00d4ff;
+        }
+
+        .control-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .ctrl-btn {
+            padding: 12px;
+            background: rgba(50, 50, 60, 0.8);
+            border: 2px solid rgba(100, 150, 255, 0.3);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .ctrl-btn:hover {
+            background: rgba(70, 70, 80, 0.9);
+            transform: translateY(-2px);
+        }
+
+        .ctrl-btn.active {
+            background: linear-gradient(135deg, #0066ff 0%, #00d4ff 100%);
+            border-color: #00d4ff;
+        }
+
+        .reset-btn {
+            grid-column: span 2;
+            background: linear-gradient(135deg, #ff4444 0%, #ff6b6b 100%);
+            border-color: #ff4444;
+        }
+
+        /* Legend */
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(20, 20, 30, 0.95);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(100, 150, 255, 0.3);
+            border-radius: 12px;
+            padding: 15px;
+            z-index: 1000;
+        }
+
+        .legend-title {
+            font-size: 14px;
+            font-weight: 900;
+            color: #00d4ff;
+            margin-bottom: 10px;
+        }
+
+        .legend-gradient {
+            height: 20px;
+            border-radius: 4px;
+            background: linear-gradient(to right,
+                #00ff00 0%,
+                #ffff00 20%,
+                #ff9900 40%,
+                #ff0000 60%,
+                #cc0066 80%,
+                #9900cc 100%);
+            margin-bottom: 8px;
+        }
+
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #aaa;
+            font-weight: 600;
+        }
+
+        /* Info Box */
+        .info-box {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(20, 20, 30, 0.95);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(100, 150, 255, 0.3);
+            border-radius: 12px;
+            padding: 15px;
+            z-index: 1000;
+            min-width: 200px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 12px;
+        }
+
+        .info-label {
+            color: #aaa;
+            font-weight: 600;
+        }
+
+        .info-value {
+            color: #00d4ff;
+            font-weight: 900;
+        }
+
+        /* Loading */
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #000428 0%, #004e92 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            transition: opacity 0.5s;
+        }
+
+        .loading-spinner {
+            width: 80px;
+            height: 80px;
+            border: 6px solid rgba(0, 212, 255, 0.2);
+            border-top-color: #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            margin-top: 25px;
+            font-size: 22px;
+            color: #00d4ff;
+            font-weight: 900;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">INITIALIZING THE CTU TYPHOON SIMULATION</div>
+    </div>
+
+    <!-- Map -->
+    <div id="map"></div>
+
+    <!-- Wind Speed Overlay -->
+    <canvas id="wind-overlay"></canvas>
+
+    <!-- Particle Canvas -->
+    <canvas id="particle-canvas"></canvas>
+
+    <!-- Click Hint -->
+    <div class="click-hint" id="click-hint">
+        🌀<br>CLICK MAP<br>TO SPAWN
+    </div>
+
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="logo">🌀 CTU TYPHOON SIMULATION</div>
+        <div class="layer-buttons">
+            <button class="layer-btn active" data-layer="wind">💨 Wind</button>
+            <button class="layer-btn" data-layer="temperature">🌡️ Temperature</button>
+            <button class="layer-btn" data-layer="pressure">📊 Pressure</button>
+            <button class="layer-btn" data-layer="clouds">☁️ Clouds</button>
+        </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="right-panel">
+        <div class="panel-title">⚙️ CONTROL PANEL</div>
+
+        <div class="status-display" id="status-display">
+            <div class="status-row">
+                <span class="status-label">Status:</span>
+                <span class="status-value" id="status">INACTIVE</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Category:</span>
+                <span class="status-value" id="category">-</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Position:</span>
+                <span class="status-value" id="position">-</span>
+            </div>
+        </div>
+
+        <div class="parameter-group">
+            <div class="param-label">
+                <span class="param-name">💨 Wind Speed</span>
+                <span class="param-value"><span id="wind-val">120</span> km/h</span>
+            </div>
+            <input type="range" id="wind-slider" min="60" max="280" value="120" step="5">
+        </div>
+
+        <div class="parameter-group">
+            <div class="param-label">
+                <span class="param-name">⬇️ Pressure</span>
+                <span class="param-value"><span id="pressure-val">960</span> hPa</span>
+            </div>
+            <input type="range" id="pressure-slider" min="880" max="1000" value="960" step="5">
+        </div>
+
+        <div class="parameter-group">
+            <div class="param-label">
+                <span class="param-name">🧭 Direction</span>
+                <span class="param-value"><span id="direction-val">270</span>° W</span>
+            </div>
+            <input type="range" id="direction-slider" min="0" max="360" value="270" step="15">
+        </div>
+
+        <div class="parameter-group">
+            <div class="param-label">
+                <span class="param-name">🚀 Movement Speed</span>
+                <span class="param-value"><span id="speed-val">20</span> km/h</span>
+            </div>
+            <input type="range" id="speed-slider" min="5" max="50" value="20" step="5">
+        </div>
+
+        <div class="control-buttons">
+            <button class="ctrl-btn active" id="btn-particles">💨 Particles</button>
+            <button class="ctrl-btn active" id="btn-wind-field">🌊 Wind Field</button>
+            <button class="ctrl-btn active" id="btn-track">📍 Track</button>
+            <button class="ctrl-btn" id="btn-auto">▶️ Auto Move</button>
+            <button class="ctrl-btn reset-btn" id="btn-reset">🔄 RESET</button>
+        </div>
+
+        <div style="margin-top: 15px; padding: 12px; background: rgba(0, 212, 255, 0.1); border-radius: 8px; border: 1px solid rgba(0, 212, 255, 0.3);">
+            <div style="font-size: 11px; color: #aaa; font-weight: 600; line-height: 1.6;">
+                🎯 <strong style="color: #00d4ff;">CLICK MAP</strong> to spawn typhoon<br>
+                💨 <strong style="color: #00d4ff;">10,000+ particles</strong> for wind visualization<br>
+                🌊 <strong style="color: #00d4ff;">Real-time wind field</strong> rendering<br>
+                                📊 <strong style="color: #00d4ff;">Ventusky-style</strong> graphics
+            </div>
+        </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend">
+        <div class="legend-title">🌀 WIND SPEED SCALE</div>
+        <div class="legend-gradient"></div>
+        <div class="legend-labels">
+            <span>0</span>
+            <span>60</span>
+            <span>120</span>
+            <span>180</span>
+            <span>240</span>
+            <span>280+</span>
+        </div>
+    </div>
+
+    <!-- Info Box -->
+    <div class="info-box">
+        <div class="info-row">
+            <span class="info-label">Particles:</span>
+            <span class="info-value" id="particle-count">10,000</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">FPS:</span>
+            <span class="info-value" id="fps">60</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Track Points:</span>
+            <span class="info-value" id="track-count">0</span>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // CONFIGURATION
+
+        const PARTICLE_COUNT = 10000;  // style high particle count
+        const WIND_FIELD_RESOLUTION = 50;  // Grid resolution
+
+        let map, currentLayer;
+        let typhoonMarker, typhoonCircle, trackPolyline;
+        let trackPoints = [];
+
+        let typhoonActive = false;
+        let typhoonLat = 0, typhoonLon = 0;
+        let windSpeed = 120, pressure = 960;
+        let direction = 270, moveSpeed = 20;
+
+        let autoMove = false;
+        let showParticles = true, showWindField = true, showTrack = true;
+
+        let particleCanvas, particleCtx;
+        let windCanvas, windCtx;
+        let particles = [];
+        let windField = [];
+        let animationFrame = 0;
+
+        let lastFrameTime = Date.now();
+        let fps = 60;
+
+        // INIT MAP
+        function initMap() {
+            map = L.map('map', {
+                center: [12.8797, 121.7740],
+                zoom: 6,
+                zoomControl: true,
+                preferCanvas: true,
+                zoomAnimation: true
+            });
+
+            // Dark satellite map (Ventusky style)
+            currentLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Esri Satellite',
+                maxZoom: 18
+            }).addTo(map);
+
+            // City labels
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
+                attribution: 'Labels',
+                pane: 'shadowPane'
+            }).addTo(map);
+
+            // Click handler
+            map.on('click', onMapClick);
+
+            // Show hint
+            document.getElementById('click-hint').classList.add('show');
+            setTimeout(() => {
+                document.getElementById('click-hint').classList.remove('show');
+            }, 5000);
+
+            // Hide loading
+            setTimeout(() => {
+                document.getElementById('loading').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('loading').style.display = 'none';
+                }, 500);
+            }, 2000);
+        }
+        // SPAWN TYPHOON
+        function onMapClick(e) {
+            typhoonLat = e.latlng.lat;
+            typhoonLon = e.latlng.lng;
+
+            typhoonActive = true;
+            trackPoints = [[typhoonLat, typhoonLon]];
+
+            spawnTyphoonVisual();
+            updateInfo();
+
+            document.getElementById('status').textContent = 'ACTIVE';
+            document.getElementById('status-display').style.background = 
+                'linear-gradient(135deg, rgba(0, 255, 0, 0.2), rgba(0, 212, 255, 0.2))';
+            document.getElementById('status-display').style.borderColor = 'rgba(0, 255, 0, 0.5)';
+
+            console.log('🌀 Typhoon spawned at', typhoonLat.toFixed(2), typhoonLon.toFixed(2));
+        }
+
+        function spawnTyphoonVisual() {
+            if (typhoonMarker) map.removeLayer(typhoonMarker);
+            if (typhoonCircle) map.removeLayer(typhoonCircle);
+            if (trackPolyline) map.removeLayer(trackPolyline);
+
+            // Typhoon marker
+            const icon = L.divIcon({
+                className: '',
+                html: `
+                    <div style="
+                        width: 60px; 
+                        height: 60px;
+                        position: relative;
+                        animation: rotate-typhoon 3s linear infinite;
+                    ">
+                        <div style="
+                            position: absolute;
+                            width: 100%;
+                            height: 100%;
+                            background: radial-gradient(circle, 
+                                rgba(255,255,255,0.9) 0%, 
+                                rgba(255,0,110,0.7) 30%, 
+                                rgba(138,43,226,0.4) 60%, 
+                                transparent 100%);
+                            border-radius: 50%;
+                            box-shadow: 0 0 40px rgba(255, 0, 110, 0.8);
+                        "></div>
+                        <div style="
+                            position: absolute;
+                            top: 50%;
+                            left: 50%;
+                            transform: translate(-50%, -50%);
+                            font-size: 30px;
+                        ">🌀</div>
+                    </div>
+                    <style>
+                        @keyframes rotate-typhoon {
+                            from { transform: rotate(0deg); }
+                            to { transform: rotate(360deg); }
+                        }
+                    </style>
+                `,
+                iconSize: [60, 60],
+                iconAnchor: [30, 30]
+            });
+
+            typhoonMarker = L.marker([typhoonLat, typhoonLon], {
+                icon: icon,
+                draggable: true
+            }).addTo(map);
+
+            typhoonMarker.on('drag', (e) => {
+                typhoonLat = e.target.getLatLng().lat;
+                typhoonLon = e.target.getLatLng().lng;
+                updateCircle();
+                updateWindField();
+                updateInfo();
+            });
+
+            updateCircle();
+        }
+
+        function updateCircle() {
+            if (typhoonCircle) map.removeLayer(typhoonCircle);
+
+            const radius = (windSpeed / 280) * 300000;
+
+            const color = getWindColor(windSpeed);
+
+            typhoonCircle = L.circle([typhoonLat, typhoonLon], {
+                color: color,
+                fillColor: color,
+                fillOpacity: 0.15,
+                radius: radius,
+                weight: 4
+            }).addTo(map);
+        }
+        // COLOR MAPPING (VENTUSKY STYLE)
+        function getWindColor(speed) {
+            // Ventusky-style color gradient
+            if (speed < 30) return '#00ff00';      // Green
+            else if (speed < 60) return '#90ff00'; // Light green
+            else if (speed < 90) return '#ffff00'; // Yellow
+            else if (speed < 120) return '#ffc000'; // Orange-yellow
+            else if (speed < 150) return '#ff9900'; // Orange
+            else if (speed < 180) return '#ff6600'; // Dark orange
+            else if (speed < 210) return '#ff0000'; // Red
+            else if (speed < 240) return '#cc0066'; // Dark red
+            else return '#9900cc';                  // Purple
+        }
+
+        function getWindColorRGB(speed) {
+            const color = getWindColor(speed);
+            const hex = color.replace('#', '');
+            const r = parseInt(hex.substr(0, 2), 16);
+            const g = parseInt(hex.substr(2, 2), 16);
+            const b = parseInt(hex.substr(4, 2), 16);
+            return [r, g, b];
+        }
+        // PARTICLE SYSTEM
+        function initParticles() {
+            particleCanvas = document.getElementById('particle-canvas');
+            particleCtx = particleCanvas.getContext('2d');
+
+            resizeCanvases();
+            window.addEventListener('resize', resizeCanvases);
+
+            // Initialize particles
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                particles.push({
+                    x: Math.random() * particleCanvas.width,
+                    y: Math.random() * particleCanvas.height,
+                    age: Math.floor(Math.random() * 120),
+                    maxAge: 120,
+                    vx: 0,
+                    vy: 0,
+                    speed: 0
+                });
+            }
+
+            console.log(`✅ Initialized ${PARTICLE_COUNT} particles`);
+        }
+
+        function resizeCanvases() {
+            particleCanvas.width = window.innerWidth;
+            particleCanvas.height = window.innerHeight;
+
+            windCanvas = document.getElementById('wind-overlay');
+            windCtx = windCanvas.getContext('2d');
+            windCanvas.width = window.innerWidth;
+            windCanvas.height = window.innerHeight;
+        }
+
+        function updateParticles() {
+            if (!typhoonActive || !showParticles) return;
+
+            const center = map.latLngToContainerPoint([typhoonLat, typhoonLon]);
+
+            for (let p of particles) {
+                const dx = p.x - center.x;
+                const dy = p.y - center.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance > 0 && distance < 600) {
+                    // Cyclonic rotation angle
+                    const angle = Math.atan2(dy, dx) + Math.PI / 2;
+
+                    // Wind strength with exponential decay
+                    const strength = (windSpeed / 280) * Math.exp(-distance / 300);
+
+                    p.vx = strength * Math.cos(angle);
+                    p.vy = strength * Math.sin(angle);
+                    p.speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy) * 280;
+
+                    // Eye wall acceleration
+                    if (distance < 80) {
+                        const pushStrength = (80 - distance) / 80;
+                        p.vx += (dx / distance) * pushStrength * 4;
+                        p.vy += (dy / distance) * pushStrength * 4;
+                    }
+                } else {
+                    // Ambient wind
+                    p.vx *= 0.95;
+                    p.vy *= 0.95;
+                    p.speed *= 0.95;
+                }
+
+                // Update position
+                p.x += p.vx;
+                p.y += p.vy;
+                p.age++;
+
+                // Reset if old or out of bounds
+                if (p.age > p.maxAge || 
+                    p.x < 0 || p.x > particleCanvas.width || 
+                    p.y < 0 || p.y > particleCanvas.height) {
+                    p.x = Math.random() * particleCanvas.width;
+                    p.y = Math.random() * particleCanvas.height;
+                    p.age = 0;
+                    p.vx = 0;
+                    p.vy = 0;
+                    p.speed = 0;
+                }
+            }
+        }
+
+        function drawParticles() {
+            if (!showParticles) {
+                particleCtx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+                return;
+            }
+
+            // Fade trail effect
+            particleCtx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            particleCtx.fillRect(0, 0, particleCanvas.width, particleCanvas.height);
+
+            // Draw particles
+            for (let p of particles) {
+                const alpha = Math.max(0, 1 - (p.age / p.maxAge));
+
+                if (alpha > 0.1) {
+                    // Color based on wind speed
+                    const [r, g, b] = getWindColorRGB(p.speed);
+                    particleCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+
+                    particleCtx.beginPath();
+                    particleCtx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+                    particleCtx.fill();
+                }
+            }
+        }
+        // WIND FIELD OVERLAY
+
+        function updateWindField() {
+            if (!typhoonActive || !showWindField) {
+                windCtx.clearRect(0, 0, windCanvas.width, windCanvas.height);
+                return;
+            }
+
+            windCtx.clearRect(0, 0, windCanvas.width, windCanvas.height);
+
+            const center = map.latLngToContainerPoint([typhoonLat, typhoonLon]);
+            const gridSize = WIND_FIELD_RESOLUTION;
+
+            // Draw wind field gradient
+            for (let x = 0; x < windCanvas.width; x += gridSize) {
+                for (let y = 0; y < windCanvas.height; y += gridSize) {
+                    const dx = x - center.x;
+                    const dy = y - center.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < 600) {
+                        const localWindSpeed = windSpeed * Math.exp(-distance / 300);
+                        const [r, g, b] = getWindColorRGB(localWindSpeed);
+                        const alpha = Math.max(0, 0.3 * (1 - distance / 600));
+
+                        windCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                        windCtx.fillRect(x, y, gridSize, gridSize);
+                    }
+                }
+            }
+
+            // Draw wind vectors
+            for (let x = 0; x < windCanvas.width; x += gridSize * 2) {
+                for (let y = 0; y < windCanvas.height; y += gridSize * 2) {
+                    const dx = x - center.x;
+                    const dy = y - center.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance > 50 && distance < 500) {
+                        const angle = Math.atan2(dy, dx) + Math.PI / 2;
+                        const strength = windSpeed * Math.exp(-distance / 300) / 10;
+
+                        const endX = x + Math.cos(angle) * strength;
+                        const endY = y + Math.sin(angle) * strength;
+
+                        windCtx.strokeStyle = `rgba(255, 255, 255, 0.4)`;
+                        windCtx.lineWidth = 2;
+                        windCtx.beginPath();
+                        windCtx.moveTo(x, y);
+                        windCtx.lineTo(endX, endY);
+                        windCtx.stroke();
+
+                        // Arrow head
+                        windCtx.fillStyle = `rgba(255, 255, 255, 0.4)`;
+                        windCtx.beginPath();
+                        windCtx.arc(endX, endY, 3, 0, Math.PI * 2);
+                        windCtx.fill();
+                    }
+                }
+            }
+        }
+        // ANIMATION LOOP
+        function animate() {
+            // Calculate FPS
+            const now = Date.now();
+            const delta = now - lastFrameTime;
+            fps = Math.round(1000 / delta);
+            lastFrameTime = now;
+
+            // Update
+            if (typhoonActive) {
+                if (autoMove) {
+                    moveTyphoon();
+                }
+
+                updateParticles();
+                updateWindField();
+            }
+
+            // Draw
+            drawParticles();
+
+            // Update UI
+            document.getElementById('fps').textContent = fps;
+            document.getElementById('track-count').textContent = trackPoints.length;
+
+            animationFrame++;
+            requestAnimationFrame(animate);
+        }
+        // MOVEMENT
+        function moveTyphoon() {
+            const rad = Math.radians(direction);
+            const deltaLat = (Math.cos(rad) * moveSpeed) / 111;
+            const deltaLon = (Math.sin(rad) * moveSpeed) / (111 * Math.cos(Math.radians(typhoonLat)));
+
+            typhoonLat += deltaLat;
+            typhoonLon += deltaLon;
+
+            if (typhoonMarker) {
+                typhoonMarker.setLatLng([typhoonLat, typhoonLon]);
+            }
+
+            updateCircle();
+            trackPoints.push([typhoonLat, typhoonLon]);
+
+            if (trackPoints.length > 200) {
+                trackPoints.shift();
+            }
+
+            updateTrack();
+            updateInfo();
+        }
+
+        function updateTrack() {
+            if (!showTrack) return;
+
+            if (trackPolyline) map.removeLayer(trackPolyline);
+
+            if (trackPoints.length > 1) {
+                trackPolyline = L.polyline(trackPoints, {
+                    color: '#00d4ff',
+                    weight: 4,
+                    opacity: 0.8,
+                    dashArray: '8, 4'
+                }).addTo(map);
+            }
+        }
+        // UI UPDATES
+        function updateInfo() {
+            if (!typhoonActive) return;
+
+            const cat = getCategory(windSpeed);
+            document.getElementById('category').textContent = cat;
+            document.getElementById('position').textContent = 
+                `${typhoonLat.toFixed(2)}°N, ${Math.abs(typhoonLon).toFixed(2)}°E`;
+        }
+
+        function getCategory(wind) {
+            if (wind < 118) return 'TD';
+            else if (wind < 178) return 'TS';
+            else if (wind < 249) return 'TY';
+            else return 'STY';
+        }
+
+        function getDirectionName(deg) {
+            const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 
+                         'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+            return dirs[Math.round(deg / 22.5) % 16];
+        }
+
+        // Helper
+        Math.radians = (deg) => deg * Math.PI / 180;
+        // CONTROLS
+                document.getElementById('wind-slider').addEventListener('input', (e) => {
+            windSpeed = parseInt(e.target.value);
+            document.getElementById('wind-val').textContent = windSpeed;
+            if (typhoonActive) {
+                updateCircle();
+                updateWindField();
+                updateInfo();
+            }
+        });
+
+        document.getElementById('pressure-slider').addEventListener('input', (e) => {
+            pressure = parseInt(e.target.value);
+            document.getElementById('pressure-val').textContent = pressure;
+        });
+
+        document.getElementById('direction-slider').addEventListener('input', (e) => {
+            direction = parseInt(e.target.value);
+            document.getElementById('direction-val').textContent = 
+                `${direction}° ${getDirectionName(direction)}`;
+        });
+
+        document.getElementById('speed-slider').addEventListener('input', (e) => {
+            moveSpeed = parseInt(e.target.value);
+            document.getElementById('speed-val').textContent = moveSpeed;
+        });
+
+        document.getElementById('btn-particles').addEventListener('click', function() {
+            showParticles = !showParticles;
+            this.classList.toggle('active');
+        });
+
+        document.getElementById('btn-wind-field').addEventListener('click', function() {
+            showWindField = !showWindField;
+            this.classList.toggle('active');
+            if (!showWindField) {
+                windCtx.clearRect(0, 0, windCanvas.width, windCanvas.height);
+            }
+        });
+
+        document.getElementById('btn-track').addEventListener('click', function() {
+            showTrack = !showTrack;
+            this.classList.toggle('active');
+            if (!showTrack && trackPolyline) map.removeLayer(trackPolyline);
+            else updateTrack();
+        });
+
+        document.getElementById('btn-auto').addEventListener('click', function() {
+            autoMove = !autoMove;
+            this.classList.toggle('active');
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            typhoonActive = false;
+            autoMove = false;
+            trackPoints = [];
+
+            if (typhoonMarker) map.removeLayer(typhoonMarker);
+            if (typhoonCircle) map.removeLayer(typhoonCircle);
+            if (trackPolyline) map.removeLayer(trackPolyline);
+
+            particleCtx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+            windCtx.clearRect(0, 0, windCanvas.width, windCanvas.height);
+
+            document.getElementById('status').textContent = 'INACTIVE';
+            document.getElementById('category').textContent = '-';
+            document.getElementById('position').textContent = '-';
+            document.getElementById('status-display').style.background = 
+                'linear-gradient(135deg, rgba(0, 100, 255, 0.2), rgba(0, 212, 255, 0.2))';
+            document.getElementById('status-display').style.borderColor = 'rgba(0, 212, 255, 0.5)';
+            document.getElementById('btn-auto').classList.remove('active');
+
+            console.log('🔄 Reset');
+        });
+
+        // Layer buttons
+        document.querySelectorAll('.layer-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                
+                const layer = this.dataset.layer;
+                console.log(`📊 Layer: ${layer}`);
+                // In full version, would switch data layers here
+            });
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            initParticles();
+            animate();
+
+            console.log('\n' + '='.repeat(60));
+            console.log('🌀 VENTUSKY-STYLE TYPHOON SIMULATOR');
+            console.log('='.repeat(60));
+            console.log('✅ Map initialized');
+            console.log('✅ 10,000 particles initialized');
+            console.log('✅ Wind field system ready');
+            console.log('✅ Click map to spawn typhoon!');
+            console.log('='.repeat(60) + '\n');
+        });
+    </script>
+</body>
+</html>
